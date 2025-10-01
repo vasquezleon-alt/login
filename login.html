@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Login</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="box">
+    <h2>Iniciar Sesión</h2>
+    <form id="loginForm">
+      <input type="text" id="user" placeholder="Usuario o correo" required>
+      <input type="password" id="password" placeholder="Contraseña" required>
+
+      <!-- Captcha generado dinámicamente -->
+      <div class="captcha-box" id="captchaBox"></div>
+      <input type="text" id="captchaInput" placeholder="Escribe el captcha" required>
+      <button type="button" id="refreshCaptcha">🔄 Nuevo Captcha</button>
+
+      <button type="submit">Ingresar</button>
+    </form>
+    <p id="msg" class="msg"></p>
+    <a href="register.html">📝 Registrarse</a>
+  </div>
+
+  <script>
+    // ===============================
+    // 🔹 VARIABLES GLOBALES
+    // ===============================
+    const LS_KEY = "app_demo_users_v1";       // clave para almacenar usuarios
+    const TOKEN_KEY = "app_session_token";    // clave para el token de sesión
+    const FORBIDDEN_DOMAINS = ["blocked.com","example.com"]; // correos prohibidos
+    const tokenSeconds = 10;                  // duración del token en segundos
+    let captchaValue = "";                    // valor actual del captcha
+
+    // ===============================
+    // 🔹 FUNCIONES DE APOYO
+    // ===============================
+
+    // Carga usuarios desde localStorage
+    function loadUsers(){
+      try{ return JSON.parse(localStorage.getItem(LS_KEY)) || []; }
+      catch{ return []; }
+    }
+
+    // Hashea contraseña en SHA-256
+    async function hashPassword(password){
+      const buf = new TextEncoder().encode(password);
+      const hash = await crypto.subtle.digest("SHA-256", buf);
+      return Array.from(new Uint8Array(hash)).map(b=>b.toString(16).padStart(2,"0")).join("");
+    }
+
+    // Validar si es email
+    function isEmail(text){ 
+      return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(text); 
+    }
+
+    // Obtener dominio de un email
+    function getDomain(email){ 
+      return email.split("@").pop().toLowerCase(); 
+    }
+
+    // Generar captcha numérico de 4 dígitos
+    function generateCaptcha(){
+      captchaValue = String(Math.floor(1000 + Math.random() * 9000));
+      document.getElementById("captchaBox").textContent = captchaValue;
+    }
+
+    // Guardar token de sesión en localStorage
+    function saveToken(username){
+      const tokenValue = Math.random().toString(36).substring(2,8).toUpperCase();
+      const expiresAt = Date.now() + (tokenSeconds*1000);
+      const tokenData = {username,tokenValue,expiresAt};
+      localStorage.setItem(TOKEN_KEY, JSON.stringify(tokenData));
+      return tokenData;
+    }
+
+    // ===============================
+    // 🔹 EVENTOS PRINCIPALES
+    // ===============================
+    document.addEventListener("DOMContentLoaded", ()=>{
+      generateCaptcha(); // genera captcha al cargar página
+      document.getElementById("refreshCaptcha").addEventListener("click", generateCaptcha);
+
+      document.getElementById("loginForm").addEventListener("submit", async e=>{
+        e.preventDefault();
+        const msg=document.getElementById("msg");
+        msg.textContent="";
+
+        const username=document.getElementById("user").value.trim();
+        const password=document.getElementById("password").value;
+        const captchaInput=document.getElementById("captchaInput").value.trim();
+
+        // 1. Validar captcha
+        if(captchaInput!==captchaValue){
+          msg.style.color="red"; 
+          msg.textContent="❌ Captcha incorrecto."; 
+          generateCaptcha(); 
+          return;
+        }
+
+        // 2. Si es email, validar dominio prohibido
+        if(isEmail(username)){
+          const domain=getDomain(username);
+          if(FORBIDDEN_DOMAINS.includes(domain)){
+            msg.style.color="red"; 
+            msg.textContent=`Dominio "${domain}" no permitido.`; 
+            return;
+          }
+        }
+
+        // 3. Buscar usuario EXACTO (case-sensitive)
+        // ⚠️ Aquí se eliminó ".toLowerCase()" para que SÍ diferencie mayúsculas/minúsculas
+        const users=loadUsers();
+        const userObj=users.find(u=>u.username === username);
+
+        if(!userObj){ 
+          msg.style.color="red"; 
+          msg.textContent="❌ Usuario no encontrado."; 
+          return; 
+        }
+
+        // 4. Validar contraseña
+        const inputHash=await hashPassword(password);
+        if(inputHash===userObj.passwordHash){
+          msg.style.color="green"; 
+          msg.textContent=`✅ Bienvenido ${username}`;
+          saveToken(username);
+          // Redirige a home después de 1s
+          setTimeout(()=>{ window.location.href="home.html"; },1000);
+        }else{
+          msg.style.color="red"; 
+          msg.textContent="❌ Contraseña incorrecta.";
+        }
+      });
+    });
+  </script>
+</body>
+</html>
+
+
+

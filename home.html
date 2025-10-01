@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Página de Inicio</title>
+  <!-- Mantén el mismo styles.css usado en las otras páginas -->
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body class="home-page">
+  <div class="box">
+    <h2>Bienvenidos a la Intranet de la Corporación de Educación Superior del Litoral</h2>
+
+    <p id="welcomeMsg"></p>
+    <p id="tokenInfo"></p>
+    <p class="timer">Tiempo restante: <span id="timeLeft">10</span> segundos</p>
+    <button id="logoutBtn">Cerrar Sesión</button>
+  </div>
+
+  <script>
+    // ------------------------------
+    // CONFIGURACIÓN
+    // ------------------------------
+    const TOKEN_KEY = "app_session_token";
+    const INACTIVITY_LIMIT = 10; // segundos
+    let countdown = INACTIVITY_LIMIT;
+    let intervalId = null;
+    let lastActivityTs = 0; 
+    const ACTIVITY_THROTTLE_MS = 800; 
+
+    // ------------------------------
+    // FUNCIONES UTILES
+    // ------------------------------
+    function getToken() {
+      try { return JSON.parse(localStorage.getItem(TOKEN_KEY)); }
+      catch { return null; }
+    }
+
+    function saveToken(token) {
+      try { localStorage.setItem(TOKEN_KEY, JSON.stringify(token)); }
+      catch(e) { console.warn("No se pudo guardar token:", e); }
+    }
+
+    function logout(msg = "⚠️ Tu sesión ha expirado.") {
+      if (intervalId) { clearInterval(intervalId); intervalId = null; }
+      alert(msg);
+      localStorage.removeItem(TOKEN_KEY);
+      window.location.href = "login.html";
+    }
+
+    function updateCountdownFromToken() {
+      const token = getToken();
+      if (!token || !token.expiresAt) {
+        logout("⚠️ No se encontró sesión válida. Vuelve a iniciar sesión.");
+        return;
+      }
+      const remainingMs = token.expiresAt - Date.now();
+      countdown = Math.max(0, Math.ceil(remainingMs / 1000));
+      const el = document.getElementById("timeLeft");
+      if (el) el.textContent = countdown;
+      if (remainingMs <= 0) {
+        logout("⚠️ Tu sesión expiró por inactividad.");
+      }
+    }
+
+    function resetTimer() {
+      const now = Date.now();
+      if (now - lastActivityTs < ACTIVITY_THROTTLE_MS) return;
+      lastActivityTs = now;
+
+      const token = getToken();
+      if (!token) {
+        logout("⚠️ No se encontró sesión. Inicia sesión de nuevo.");
+        return;
+      }
+      token.expiresAt = Date.now() + INACTIVITY_LIMIT * 1000;
+      saveToken(token);
+      updateCountdownFromToken(); 
+    }
+
+    function setActivityListeners() {
+      const events = ["mousemove", "keydown", "click", "touchstart"];
+      events.forEach(evt => {
+        document.addEventListener(evt, resetTimer, { passive: true });
+      });
+      document.addEventListener("visibilitychange", () => {
+        if (!document.hidden) updateCountdownFromToken();
+      });
+    }
+
+    // ------------------------------
+    // LÓGICA PRINCIPAL
+    // ------------------------------
+    (function init() {
+      const tokenData = getToken();
+
+      if (!tokenData || !tokenData.expiresAt || Date.now() > tokenData.expiresAt) {
+        logout("⚠️ Tu sesión ya expiró, vuelve a iniciar.");
+        return;
+      }
+
+      const welcome = document.getElementById("welcomeMsg");
+      const tokenInfo = document.getElementById("tokenInfo");
+      if (welcome) welcome.textContent = `Bienvenidos a la Intranet de la Corporación de Educación Superior del Litoral, ${tokenData.username}.`;
+      if (tokenInfo) tokenInfo.textContent = `Tu token es ${tokenData.tokenValue}.`;
+
+      updateCountdownFromToken();
+
+      intervalId = setInterval(() => {
+        updateCountdownFromToken();
+      }, 1000);
+
+      setActivityListeners();
+
+      const logoutBtn = document.getElementById("logoutBtn");
+      if (logoutBtn) {
+        logoutBtn.addEventListener("click", () => logout("🚪 Cerraste sesión."));
+      }
+    })();
+  </script>
+</body>
+</html>
