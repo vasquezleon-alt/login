@@ -19,7 +19,7 @@
 
   <script>
     const LS_KEY = "app_demo_users_v1";
-    const FORBIDDEN_DOMAINS = ["blocked.com","example.com"];
+    const FORBIDDEN_DOMAINS = ["blocked.com", "example.com"];
 
     // 🔒 Función para encriptar la contraseña con SHA-256
     async function hashPassword(password) {
@@ -27,69 +27,70 @@
       const buf = enc.encode(password);
       const hashBuffer = await crypto.subtle.digest("SHA-256", buf);
       return Array.from(new Uint8Array(hashBuffer))
-                  .map(b => b.toString(16).padStart(2,"0"))
-                  .join("");
+        .map(b => b.toString(16).padStart(2, "0"))
+        .join("");
     }
 
     // 📂 Cargar usuarios desde localStorage
-    function loadUsers(){
-      try{ return JSON.parse(localStorage.getItem(LS_KEY)) || []; }
-      catch{ return []; }
+    function loadUsers() {
+      try { return JSON.parse(localStorage.getItem(LS_KEY)) || []; }
+      catch { return []; }
     }
 
-    // 💾 Guardar usuario nuevo (diferencia mayúsculas y minúsculas)
-    async function saveUser(username, plainPassword){
+    // 💾 Guardar usuario nuevo
+    async function saveUser(username, plainPassword) {
       const users = loadUsers();
 
-      // ✅ Ahora la comparación es estricta (sensible a mayúsculas)
-      if(users.some(u => u.username === username)){
+      if (users.some(u => u.username === username)) {
         throw new Error("Usuario ya existe (respetando mayúsculas/minúsculas)");
       }
 
       const passwordHash = await hashPassword(plainPassword);
-      users.push({username, passwordHash});
+      users.push({ username, passwordHash });
       localStorage.setItem(LS_KEY, JSON.stringify(users));
     }
 
     // 📧 Validaciones de correo
-    function isEmail(text){ return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(text); }
-    function getDomain(email){ return email.split("@").pop().toLowerCase(); }
+    function isEmail(text) { return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(text); }
+    function getDomain(email) { return email.split("@").pop().toLowerCase(); }
 
     // 🎯 Captura del formulario
     const form = document.getElementById("registerForm");
     const regMsg = document.getElementById("regMsg");
 
-    form.addEventListener("submit", async e=>{
+    form.addEventListener("submit", async e => {
       e.preventDefault();
-      const username=document.getElementById("newUser").value.trim();
-      const password=document.getElementById("newPass").value;
+      const username = document.getElementById("newUser").value.trim();
+      const password = document.getElementById("newPass").value;
 
-      // ⛔ Validación de contraseña
-      if(password.length<8 || password.length>12){
-        regMsg.style.color="red";
-        regMsg.textContent="La contraseña debe tener entre 8 y 12 caracteres.";
+      // ✅ Validación fuerte de contraseña
+      const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[\W_]).{8,12}$/;
+      if (!passwordRegex.test(password)) {
+        regMsg.style.color = "red";
+        regMsg.textContent =
+          "La contraseña debe tener entre 8 y 12 caracteres, e incluir al menos una mayúscula, una minúscula, un número y un carácter especial.";
         return;
       }
 
-      // ⛔ Validación de dominio prohibido en correos
-      if(isEmail(username)){
-        const domain=getDomain(username);
-        if(FORBIDDEN_DOMAINS.includes(domain)){
-          regMsg.style.color="red";
-          regMsg.textContent=`Dominio "${domain}" no permitido.`;
+      // ⛔ Validación de dominio prohibido
+      if (isEmail(username)) {
+        const domain = getDomain(username);
+        if (FORBIDDEN_DOMAINS.includes(domain)) {
+          regMsg.style.color = "red";
+          regMsg.textContent = `Dominio "${domain}" no permitido.`;
           return;
         }
       }
 
       // ✅ Intentar guardar el usuario
-      try{
-        await saveUser(username,password);
-        regMsg.style.color="green";
-        regMsg.textContent=`Usuario "${username}" registrado correctamente.`;
+      try {
+        await saveUser(username, password);
+        regMsg.style.color = "green";
+        regMsg.textContent = `Usuario "${username}" registrado correctamente.`;
         form.reset();
-      }catch(err){
-        regMsg.style.color="red";
-        regMsg.textContent=err.message;
+      } catch (err) {
+        regMsg.style.color = "red";
+        regMsg.textContent = err.message;
       }
     });
   </script>
